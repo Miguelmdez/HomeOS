@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f1115">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="description" content="HomeOS: gestión sencilla del hogar">
+    <title>HomeOS</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <header class="app-header">
+        <div>
+            <h1 id="headerTitle">Hoy</h1>
+            <p id="headerDate"></p>
+        </div>
+        <button class="icon-button" id="quickAddButton" aria-label="Añadir rápidamente"
+            title="Añadir rápidamente">+</button>
+    </header>
+
+    <main id="app" class="app-main" aria-live="polite"></main>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+        <button class="nav-item active" data-tab="today" aria-label="Hoy">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    d="M7 2v3M17 2v3M3.5 9h17M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 9h3v3H7z" />
+            </svg><span>Hoy</span>
+        </button>
+        <button class="nav-item" data-tab="kitchen" aria-label="Cocina">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 3v18M17 3c3 2 3 7 0 9" />
+            </svg><span>Cocina</span>
+        </button>
+        <button class="nav-item" data-tab="luke" aria-label="Luke">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    d="M12 20c-4 0-7-2.7-7-6.5C5 9.7 7.7 7 11.5 7c.5 0 1 .1 1.5.2V5a2 2 0 0 1 4 0v7.5c0 4.1-1.8 7.5-5 7.5Z" />
+                <circle cx="7.5" cy="4.5" r="1.5" />
+                <circle cx="12" cy="3.5" r="1.5" />
+                <circle cx="16.5" cy="4.5" r="1.5" />
+            </svg><span>Luke</span>
+        </button>
+        <button class="nav-item" data-tab="shopping" aria-label="Compra">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 4h2l2.2 10.2A2 2 0 0 0 9.1 16H18a2 2 0 0 0 2-1.6L21 8H6M9 20h.01M18 20h.01" />
+            </svg><span>Compra</span>
+        </button>
+        <button class="nav-item" data-tab="more" aria-label="Más">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="5" cy="12" r="1" />
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+            </svg><span>Más</span>
+        </button>
+    </nav>
+
+    <div id="modalBackdrop" class="modal-backdrop" hidden>
+        <section class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-header">
+                <h2 id="modalTitle">Editar</h2><button class="icon-button" id="modalClose"
+                    aria-label="Cerrar">×</button>
+            </div>
+            <form id="itemForm">
+                <div id="modalFields"></div>
+                <div class="modal-actions"><button type="button" class="button secondary"
+                        id="modalCancel">Cancelar</button><button type="submit" class="button primary">Guardar</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <div id="toast" class="toast" role="status"></div>
+    <script src="app.js" defer></script>
+</body>
+
+</html>
