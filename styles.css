@@ -38,6 +38,20 @@ textarea {
 button {
     color: inherit;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 160ms ease, filter 160ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+button:active:not(:disabled) {
+    transform: scale(.97);
+}
+
+.button:active:not(:disabled),
+.small-button:active:not(:disabled),
+.nav-item:active:not(:disabled),
+.day-tab:active:not(:disabled),
+.check-row:active:not(:disabled) {
+    transform: scale(.97);
 }
 
 .app-header {
@@ -72,6 +86,22 @@ button {
 .app-main {
     min-height: 100vh;
     padding: calc(var(--header) + 16px) 12px calc(var(--nav) + 24px);
+}
+
+.app-main.view-enter {
+    animation: view-enter 200ms ease-out both;
+}
+
+@keyframes view-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .bottom-nav {
@@ -191,11 +221,13 @@ button {
     border-radius: 7px;
     display: grid;
     place-items: center;
+    transition: background-color 220ms ease, border-color 220ms ease, transform 260ms cubic-bezier(.34, 1.56, .64, 1);
 }
 
 .check-row.done .check-box {
     background: var(--accent);
     border-color: var(--accent);
+    transform: scale(1.08);
 }
 
 .check-row.done .check-box:after {
@@ -213,6 +245,7 @@ button {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 180ms ease, opacity 180ms ease;
 }
 
 .meta {
@@ -279,6 +312,12 @@ button {
     color: var(--danger);
 }
 
+.small-button:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .button {
     min-height: 44px;
     border-radius: 12px;
@@ -320,6 +359,7 @@ button {
     height: 100%;
     background: var(--accent);
     border-radius: 999px;
+    transition: width 260ms ease-out;
 }
 
 .day-tabs {
@@ -343,6 +383,13 @@ button {
     color: #07150f;
     border-color: var(--accent);
     font-weight: 800;
+}
+
+.day-tab:not(.active):hover,
+.button.secondary:hover,
+.small-button:hover:not(:disabled) {
+    border-color: #444c5b;
+    filter: brightness(1.08);
 }
 
 .week-planner {
@@ -376,6 +423,13 @@ button {
     display: flex;
     align-items: flex-end;
     background: rgba(0, 0, 0, .68);
+    backdrop-filter: blur(4px);
+    animation: backdrop-enter 180ms ease-out both;
+}
+
+@keyframes backdrop-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .modal-backdrop[hidden] {
@@ -391,6 +445,13 @@ button {
     border-bottom: 0;
     border-radius: 20px 20px 0 0;
     padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    transform-origin: bottom center;
+    animation: modal-enter 220ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+@keyframes modal-enter {
+    from { opacity: 0; transform: translateY(16px) scale(.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .modal-header {
@@ -457,8 +518,17 @@ button {
     padding: 10px 14px;
     opacity: 0;
     pointer-events: none;
-    transition: .2s ease;
+    transition: opacity 220ms ease, transform 220ms cubic-bezier(.2, .8, .2, 1);
     white-space: nowrap;
+}
+
+.item-enter {
+    animation: item-enter 260ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+@keyframes item-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .toast.show {
@@ -510,6 +580,17 @@ button {
         max-width: 520px;
         margin: auto;
         box-shadow: 0 0 60px rgba(0, 0, 0, .45);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            scroll-behavior: auto !important;
+            animation-duration: .01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: .01ms !important;
+        }
     }
 
     .bottom-nav,

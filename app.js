@@ -1,5 +1,5 @@
 (() => {
-    'ng strict';
+    'use strict';
 
     const STORE = 'homeos_state_v1';
     const $ = (q, root = document) => root.querySelector(q);
@@ -27,6 +27,7 @@
         ],
         todayTasks: [],
         todayChecked: {},
+        todayExtras: [],
         weeklyTemplates: {
             0: [{ id: 'week-0-1', name: 'Preparar tareas para la semana' }],
             1: [{ id: 'week-1-1', name: 'Poner lavadora ropa clara' }, { id: 'week-1-2', name: 'Secadora y doblar ropa' }],
@@ -52,6 +53,7 @@
         pantry: [{ id: 'pantry-1', name: 'Arroz', category: 'Alimentación' }],
         maintenance: [{ id: 'maint-1', name: 'Limpiar filtros', frequency: 30, lastDone: todayKey() }],
         budgets: [{ id: 'budget-1', name: 'Compra mensual', amount: 250 }],
+        expenses: [],
         shopping: []
     };
 
@@ -77,6 +79,7 @@
     function normalizeLegacyChecks(s) {
         s.dailyChecked = s.dailyChecked || {};
         s.todayChecked = s.todayChecked || {};
+        if (!Array.isArray(s.todayExtras)) s.todayExtras = [];
 
         if (!Array.isArray(s.dailyBaseTasks)) {
             if (Array.isArray(s.dailyTasks) && s.dailyTasks.length) s.dailyBaseTasks = s.dailyTasks.map(i => ({ id: i.id, name: i.name, checked: false }));
@@ -106,6 +109,7 @@
         if (s.lastOpenDate !== today) {
             s.dailyChecked = {};
             s.todayChecked = {};
+            s.todayExtras = [];
             s.habits?.forEach(i => i.checked = false);
             s.weeklyTasks?.forEach(i => i.checked = false);
             s.lukeDaily?.forEach(i => i.checked = false);
@@ -134,6 +138,14 @@
                 kind: 'weekly',
                 badge: dayNames[currentDay],
                 checked: !!s.todayChecked[`weekly:${item.id}`]
+            })),
+            ...s.todayExtras.map(item => ({
+                id: `extra:${item.id}`,
+                sourceId: item.id,
+                name: item.name,
+                kind: 'extra',
+                badge: 'Hoy',
+                checked: !!s.todayChecked[`extra:${item.id}`]
             }))
         ];
     }
@@ -156,8 +168,11 @@
 
     function setHeader(tab) {
         const names = { today: 'Hoy', kitchen: 'Cocina', luke: 'Luke', shopping: 'Compra', more: 'Más' };
+        const quickAddNames = { today: 'Añadir tarea de hoy', kitchen: 'Añadir receta', luke: 'Añadir cuidado', shopping: 'Añadir producto', more: 'Registrar gasto' };
         $('#headerTitle').textContent = names[tab];
         $('#headerDate').textContent = dateLabel();
+        $('#quickAddButton').setAttribute('aria-label', quickAddNames[tab]);
+        $('#quickAddButton').title = quickAddNames[tab];
     }
 
     function iconEdit(section) {
@@ -181,7 +196,7 @@
         return `<button class="button secondary full" data-add-item="${collection}">＋ ${esc(label)}</button>`;
     }
 
-    function render() {
+    function render(animate = false) {
         checkDayReset(state); save();
         setHeader(activeTab);
         if (activeTab === 'today') renderToday();
@@ -189,11 +204,15 @@
         if (activeTab === 'luke') renderLuke();
         if (activeTab === 'shopping') renderShopping();
         if (activeTab === 'more') renderMore();
+        if (animate) {
+            app.classList.remove('view-enter');
+            void app.offsetWidth;
+            app.classList.add('view-enter');
+        }
     }
 
     function renderToday() {
         const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-        const todayName = dayNames[new Date().getDay()];
         const todayDone = state.todayTasks.filter(i => i.checked).length;
         const habitDone = state.habits.filter(i => i.checked).length;
         const dayLabels = [
@@ -211,19 +230,25 @@
       <section class="section"><div class="card">
         ${sectionHead('Tareas de hoy', 'todayTasks', '')}
         ${state.todayTasks.length ? state.todayTasks.map(i => `
-          <div class="card-row">
+          <div class="card-row" data-row-id="${esc(i.id)}">
             <button class="check-row ${i.checked ? 'done' : ''}" data-check="todayTasks" data-id="${esc(i.id)}">
               <span class="check-box"></span>
               <span class="item-name">${esc(i.name)}</span>
-              <span class="badge ${i.kind === 'fixed' ? 'fixed' : 'routine'}">${esc(i.badge)}</span>
+              <span class="badge ${i.kind === 'weekly' ? 'routine' : 'fixed'}">${esc(i.badge)}</span>
             </button>
+            ${editSections.has('todayTasks') ? `
+              <div class="item-actions">
+                <button class="small-button" data-today-edit="${esc(i.kind)}" data-id="${esc(i.sourceId)}" aria-label="Editar tarea">✎</button>
+                <button class="small-button danger" data-today-delete="${esc(i.kind)}" data-id="${esc(i.sourceId)}" aria-label="Eliminar tarea">×</button>
+              </div>` : ''}
           </div>`).join('') : '<div class="empty">Sin tareas para hoy</div>'}
+        ${editSections.has('todayTasks') ? `<div class="edit-panel"><button class="button secondary full" data-add-today-task>＋ Añadir tarea para hoy</button></div>` : ''}
       </div></section>
 
       <section class="section"><div class="card">
         ${sectionHead('Tareas diarias fijas', 'dailyBaseTasks', '')}
         ${state.dailyBaseTasks.length ? state.dailyBaseTasks.map(i => `
-          <div class="card-row">
+          <div class="card-row" data-row-id="${esc(i.id)}">
             <span class="item-name">${esc(i.name)}</span>
             ${editSections.has('dailyBaseTasks') ? editControls('dailyBaseTasks', i) : '<span class="badge fixed">Diaria</span>'}
           </div>`).join('') : '<div class="empty">Sin tareas fijas</div>'}
@@ -238,7 +263,7 @@
         <div>
           <div class="category-title">${esc(dayNames[selectedPlannerDay])}</div>
           ${plannerItems.length ? plannerItems.map(i => `
-            <div class="card-row">
+            <div class="card-row" data-row-id="${esc(i.id)}">
               <span class="item-name">${esc(i.name)}</span>
               ${editSections.has('weeklyTemplates') ? `
                 <div class="item-actions">
@@ -264,7 +289,7 @@
     function cardCheck(item, kind, collection) {
         let checked = kind === 'dailyChecked' ? !!state.dailyChecked[item.id] : !!item.checked;
         const editing = editSections.has(collection);
-        return `<div class="card-row"><button class="check-row ${checked ? 'done' : ''}" data-check="${collection}" data-id="${item.id}" ${kind === 'dailyChecked' ? `data-daily="1"` : ''}><span class="check-box"></span><span class="item-name">${esc(item.name)}</span>${item.category ? `<span class="badge">${esc(item.category)}</span>` : ''}</button>${editing ? editControls(collection, item) : ''}</div>`;
+        return `<div class="card-row" data-row-id="${esc(item.id)}"><button class="check-row ${checked ? 'done' : ''}" data-check="${collection}" data-id="${item.id}" ${kind === 'dailyChecked' ? `data-daily="1"` : ''}><span class="check-box"></span><span class="item-name">${esc(item.name)}</span>${item.category ? `<span class="badge">${esc(item.category)}</span>` : ''}</button>${editing ? editControls(collection, item) : ''}</div>`;
     }
 
     function renderKitchen() {
@@ -279,7 +304,13 @@
         ${sectionHead('Menú semanal', 'menu', '')}
         ${['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => {
             const items = state.menu.filter(i => i.day === day);
-            return `<div class="category-title">${day}</div>${items.length ? items.map(i => `<div class="card-row menu-plato"><span class="item-name">${esc(i.name)}</span>${editSections.has('menu') ? editControls('menu', i) : ''}</div>`).join('') : '<div class="meta">Sin platos</div>'}`;
+            return `<div class="category-title">${day}</div>${items.length ? items.map((i, index) => `<div class="card-row menu-plato" data-menu-item="${esc(i.id)}"><span class="item-name">${esc(i.name)}</span>${editSections.has('menu') ? `
+              <div class="item-actions">
+                <button class="small-button" data-add-item="menu" data-id="${esc(i.id)}" aria-label="Editar plato">✎</button>
+                <button class="small-button danger" data-delete-item="menu" data-id="${esc(i.id)}" aria-label="Eliminar plato">×</button>
+                <button class="small-button" data-menu-move="${esc(i.id)}" data-day="${esc(day)}" data-dir="-1" aria-label="Subir" ${index === 0 ? 'disabled' : ''}>↑</button>
+                <button class="small-button" data-menu-move="${esc(i.id)}" data-day="${esc(day)}" data-dir="1" aria-label="Bajar" ${index === items.length - 1 ? 'disabled' : ''}>↓</button>
+              </div>` : ''}</div>`).join('') : '<div class="meta">Sin platos</div>'}`;
         }).join('')}
         ${editSections.has('menu') ? `<div class="edit-panel">${addButton('menu', 'Añadir plato')}</div>` : ''}
       </div></section>`;
@@ -303,16 +334,22 @@
         ${sectionHead('Cuidados periódicos', 'lukePeriodic', '')}
         ${state.lukePeriodic.length ? state.lukePeriodic.map(i => {
             const elapsed = daysSince(i.lastDone); const freq = Number(i.frequency) || 0;
-            const due = freq > 0 && elapsed >= freq;
+            const checked = i.lastDone === todayKey();
+            const due = !checked && freq > 0 && elapsed >= freq;
             const editing = editSections.has('lukePeriodic');
-            return `<div class="card-row"><button class="check-row ${due ? '' : 'done'}" data-check="lukePeriodic" data-id="${i.id}"><span class="check-box"></span><span class="item-name">${esc(i.name)}</span><span class="badge ${due ? 'due' : 'today'}">${due ? 'Vencido' : `cada ${freq} d`}</span></button>${editing ? editControls('lukePeriodic', i) : ''}</div>`;
+            return `<div class="card-row"><button class="check-row ${checked ? 'done' : ''}" data-check="lukePeriodic" data-id="${i.id}"><span class="check-box"></span><span class="item-name">${esc(i.name)}</span><span class="badge ${due ? 'due' : checked ? 'today' : ''}">${checked ? 'Hecho hoy' : due ? 'Vencido' : `cada ${freq} d`}</span></button>${editing ? editControls('lukePeriodic', i) : ''}</div>`;
         }).join('') : '<div class="empty">Sin cuidados periódicos</div>'}
         ${editSections.has('lukePeriodic') ? `<div class="edit-panel">${addButton('lukePeriodic', 'Nuevo cuidado periódico')}</div>` : ''}
       </div></section>`;
     }
 
     function renderShopping() {
-        const categories = state.categories.length ? state.categories : [{ name: 'Sin categoría', id: 'none' }];
+        const groupedShopping = new Map();
+        state.shopping.forEach(item => {
+            const category = item.category || 'Sin categoría';
+            if (!groupedShopping.has(category)) groupedShopping.set(category, []);
+            groupedShopping.get(category).push(item);
+        });
         app.innerHTML = `
       <section class="section"><div class="card">
         ${sectionHead('Reposición rápida', 'quickRestock', '')}
@@ -322,12 +359,9 @@
 
       <section class="section"><div class="card">
         ${sectionHead('Lista de compra', 'shopping', '')}
-        ${categories.map(cat => {
-            const items = state.shopping.filter(i => (i.category || '') === cat.name);
-            if (!items.length && editSections.has('shopping')) return '';
-            return items.length ? `<div class="category-title">${esc(cat.name)}</div>${items.map(i => cardCheck(i, 'shopping', 'shopping')).join('')}` : '';
-        }).join('') || '<div class="empty">Lista vacía</div>'
-            }
+        ${groupedShopping.size ? [...groupedShopping].map(([category, items]) =>
+            `<div class="category-title">${esc(category)}</div>${items.map(i => cardCheck(i, 'shopping', 'shopping')).join('')}`
+        ).join('') : '<div class="empty">Lista vacía</div>'}
         ${editSections.has('shopping') ? `<div class="edit-panel">${addButton('shopping', 'Añadir a la compra')}</div>` : ''}
       </div></section>
 
@@ -367,6 +401,12 @@
         ${editSections.has('budgets') ? `<div class="edit-panel">${addButton('budgets', 'Nuevo presupuesto')}</div>` : ''}
       </div></section>
 
+      <section class="section"><div class="card">
+        ${sectionHead('Gastos', 'expenses', '')}
+        ${state.expenses.length ? state.expenses.map(i => `<div class="card-row"><span class="item-name">${esc(i.name)}</span><span class="badge">${esc(i.amount || '0')} €</span>${editSections.has('expenses') ? editControls('expenses', i) : ''}</div>`).join('') : '<div class="empty">Sin gastos registrados</div>'}
+        ${editSections.has('expenses') ? `<div class="edit-panel">${addButton('expenses', 'Añadir gasto')}</div>` : ''}
+      </div></section>
+
       <section class="section"><div class="card"><div class="section-head"><h2>Datos</h2></div>
         <button class="button secondary full" id="exportState">Exportar copia JSON</button>
         <p class="swipe-note"></p>
@@ -376,7 +416,8 @@
 
     function openModal(collection, item = null, day = null) {
         modalState = { collection, item, day };
-        $('#modalTitle').textContent = item ? 'Editar elemento' : 'Añadir elemento';
+        const titles = { todayExtras: 'Añadir tarea de hoy', recipes: 'Añadir receta', lukeDaily: 'Añadir cuidado', shopping: 'Añadir a la compra', expenses: 'Registrar gasto' };
+        $('#modalTitle').textContent = item ? 'Editar elemento' : titles[collection] || 'Añadir elemento';
         const fields = modalFields(collection, item || {});
         $('#modalFields').innerHTML = fields;
         $('#modalBackdrop').hidden = false;
@@ -386,11 +427,11 @@
     function modalFields(collection, item) {
         const name = `<div class="field"><label for="fieldName">Nombre</label><input id="fieldName" name="name" required maxlength="80" value="${esc(item.name || '')}"></div>`;
         let extra = '';
-        if (['dailyBaseTasks', 'dailyTasks', 'habits', 'recipes', 'lukeDaily', 'quickRestock', 'frequent', 'pantry', 'categories', 'shopping', 'weeklyTasks', 'lukePeriodic', 'maintenance', 'budgets', 'menu'].includes(collection)) {
-            if (['habits', 'lukeDaily', 'quickRestock', 'frequent', 'pantry', 'categories', 'shopping', 'dailyBaseTasks', 'dailyTasks', 'recipes', 'budgets', 'maintenance', 'weeklyTasks', 'lukePeriodic', 'menu'].includes(collection)) {
+        if (['todayExtras', 'dailyBaseTasks', 'dailyTasks', 'habits', 'recipes', 'lukeDaily', 'quickRestock', 'frequent', 'pantry', 'categories', 'shopping', 'weeklyTasks', 'lukePeriodic', 'maintenance', 'budgets', 'expenses', 'menu'].includes(collection)) {
+            if (['todayExtras', 'habits', 'lukeDaily', 'quickRestock', 'frequent', 'pantry', 'categories', 'shopping', 'dailyBaseTasks', 'dailyTasks', 'recipes', 'budgets', 'expenses', 'maintenance', 'weeklyTasks', 'lukePeriodic', 'menu'].includes(collection)) {
                 if (['lukePeriodic', 'maintenance'].includes(collection)) extra += fieldFrequency(item);
                 if (collection === 'habits' || collection === 'recipes' || collection === 'pantry' || collection === 'shopping' || collection === 'quickRestock' || collection === 'frequent') extra += fieldCategory(item);
-                if (collection === 'budgets') extra += `<div class="field"><label for="fieldAmount">Importe (€)</label><input id="fieldAmount" name="amount" type="number" min="0" step="0.01" value="${esc(item.amount || '')}"></div>`;
+                if (collection === 'budgets' || collection === 'expenses') extra += `<div class="field"><label for="fieldAmount">Importe (€)</label><input id="fieldAmount" name="amount" type="number" min="0" step="0.01" required value="${esc(item.amount ?? '')}"></div>`;
                 if (collection === 'weeklyTasks' || collection === 'menu') extra += fieldDay(item);
             }
         }
@@ -412,9 +453,15 @@
 
     function deleteItem(collection, id) {
         if (!confirm('¿Eliminar este elemento?')) return;
-        state[collection] = state[collection].filter(i => i.id !== id);
-        if (collection === 'dailyBaseTasks') generateTodayTasks(state);
-        save(); render(); toast('Elemento eliminado');
+        animateRemoval(id, () => {
+            state[collection] = state[collection].filter(i => i.id !== id);
+            if (collection === 'dailyBaseTasks') generateTodayTasks(state);
+            if (collection === 'todayExtras') {
+                delete state.todayChecked[`extra:${id}`];
+                generateTodayTasks(state);
+            }
+            save(); render(); toast('Elemento eliminado');
+        });
     }
 
     function moveItem(collection, id, dir) {
@@ -423,6 +470,48 @@
         [arr[idx], arr[next]] = [arr[next], arr[idx]];
         if (collection === 'dailyBaseTasks') generateTodayTasks(state);
         save(); render();
+    }
+
+    function moveMenuItem(id, day, dir) {
+        const sameDay = state.menu.map((item, index) => ({ item, index })).filter(entry => entry.item.day === day);
+        const position = sameDay.findIndex(entry => entry.item.id === id);
+        const nextPosition = position + dir;
+        if (position < 0 || nextPosition < 0 || nextPosition >= sameDay.length) return;
+
+        const before = new Map([...app.querySelectorAll('[data-menu-item]')].map(row => [row.dataset.menuItem, row.getBoundingClientRect().top]));
+        const currentIndex = sameDay[position].index;
+        const nextIndex = sameDay[nextPosition].index;
+        [state.menu[currentIndex], state.menu[nextIndex]] = [state.menu[nextIndex], state.menu[currentIndex]];
+        save();
+        render();
+        app.querySelectorAll('[data-menu-item]').forEach(row => {
+            const previousTop = before.get(row.dataset.menuItem);
+            if (previousTop === undefined) return;
+            const offset = previousTop - row.getBoundingClientRect().top;
+            if (offset) row.animate(
+                [{ transform: `translateY(${offset}px)` }, { transform: 'translateY(0)' }],
+                { duration: 220, easing: 'ease-out' }
+            );
+        });
+    }
+
+    function animateRow(id) {
+        const row = [...app.querySelectorAll('[data-row-id]')].find(element => element.dataset.rowId === id);
+        if (row) row.classList.add('item-enter');
+    }
+
+    function animateRemoval(id, remove) {
+        const row = [...app.querySelectorAll('[data-row-id]')].find(element => element.dataset.rowId === id);
+        if (!row || typeof row.animate !== 'function') {
+            remove();
+            return;
+        }
+        row.style.pointerEvents = 'none';
+        const animation = row.animate(
+            [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(-6px)' }],
+            { duration: 160, easing: 'ease-in', fill: 'forwards' }
+        );
+        animation.onfinish = remove;
     }
 
     app.addEventListener('click', event => {
@@ -443,15 +532,57 @@
             return;
         }
 
+        const addTodayTask = event.target.closest('[data-add-today-task]');
+        if (addTodayTask) {
+            openModal('todayExtras');
+            return;
+        }
+
+        const todayEdit = event.target.closest('[data-today-edit]');
+        if (todayEdit) {
+            const kind = todayEdit.dataset.todayEdit;
+            const collection = kind === 'fixed' ? 'dailyBaseTasks' : kind === 'weekly' ? 'weeklyTemplates' : 'todayExtras';
+            const day = new Date().getDay();
+            const items = collection === 'weeklyTemplates' ? state.weeklyTemplates[day] : state[collection];
+            const item = items.find(entry => entry.id === todayEdit.dataset.id);
+            if (item) openModal(collection, item, collection === 'weeklyTemplates' ? day : null);
+            return;
+        }
+
+        const todayDelete = event.target.closest('[data-today-delete]');
+        if (todayDelete) {
+            const kind = todayDelete.dataset.todayDelete;
+            const id = todayDelete.dataset.id;
+            const day = new Date().getDay();
+            const collection = kind === 'fixed' ? 'dailyBaseTasks' : kind === 'weekly' ? 'weeklyTemplates' : 'todayExtras';
+            if (!confirm('¿Eliminar esta tarea?')) return;
+            animateRemoval(`${kind === 'fixed' ? 'fixed' : kind === 'weekly' ? 'weekly' : 'extra'}:${id}`, () => {
+                if (collection === 'weeklyTemplates') {
+                    state.weeklyTemplates[day] = state.weeklyTemplates[day].filter(item => item.id !== id);
+                } else {
+                    state[collection] = state[collection].filter(item => item.id !== id);
+                }
+                delete state.todayChecked[`${kind === 'fixed' ? 'fixed' : kind === 'weekly' ? 'weekly' : 'extra'}:${id}`];
+                generateTodayTasks(state);
+                save();
+                render();
+                toast('Tarea eliminada');
+            });
+            return;
+        }
+
         const templateDelete = event.target.closest('[data-template-delete]');
         if (templateDelete) {
             if (!confirm('¿Eliminar esta rutina?')) return;
             const day = Number(templateDelete.dataset.templateDelete);
-            state.weeklyTemplates[day] = state.weeklyTemplates[day].filter(i => i.id !== templateDelete.dataset.templateId);
-            generateTodayTasks(state);
-            save();
-            render();
-            toast('Rutina eliminada');
+            const id = templateDelete.dataset.templateId;
+            animateRemoval(id, () => {
+                state.weeklyTemplates[day] = state.weeklyTemplates[day].filter(i => i.id !== id);
+                generateTodayTasks(state);
+                save();
+                render();
+                toast('Rutina eliminada');
+            });
             return;
         }
 
@@ -482,6 +613,12 @@
         const move = event.target.closest('[data-move-item]');
         if (move) { moveItem(move.dataset.moveItem, move.dataset.id, Number(move.dataset.dir)); return; }
 
+        const menuMove = event.target.closest('[data-menu-move]');
+        if (menuMove) {
+            moveMenuItem(menuMove.dataset.menuMove, menuMove.dataset.day, Number(menuMove.dataset.dir));
+            return;
+        }
+
         const check = event.target.closest('[data-check]');
         if (check) {
             const collection = check.dataset.check, id = check.dataset.id;
@@ -496,7 +633,20 @@
             else if (collection === 'habits') { const i = state.habits.find(x => x.id === id); i.checked = !i.checked; toast(i.checked ? 'Hábito completado' : 'Hábito pendiente'); }
             else if (collection === 'shopping') { const i = state.shopping.find(x => x.id === id); i.checked = !i.checked; toast(i.checked ? 'Añadido a la compra' : 'Compra pendiente'); }
             else if (collection === 'lukeDaily') { const i = state.lukeDaily.find(x => x.id === id); i.checked = !i.checked; toast(i.checked ? 'Cuidado completado' : 'Cuidado pendiente'); }
-            else if (collection === 'lukePeriodic') { const i = state.lukePeriodic.find(x => x.id === id); i.lastDone = todayKey(); toast('Cuidado registrado'); }
+            else if (collection === 'lukePeriodic') {
+                const item = state.lukePeriodic.find(x => x.id === id);
+                if (item) {
+                    if (item.lastDone === todayKey()) {
+                        item.lastDone = item.lastDoneBeforeToday || null;
+                        delete item.lastDoneBeforeToday;
+                        toast('Cuidado marcado como pendiente');
+                    } else {
+                        item.lastDoneBeforeToday = item.lastDone || null;
+                        item.lastDone = todayKey();
+                        toast('Cuidado registrado');
+                    }
+                }
+            }
             else if (collection === 'maintenance') { const i = state.maintenance.find(x => x.id === id); i.lastDone = todayKey(); toast('Mantenimiento registrado'); }
             save(); render(); return;
         }
@@ -522,22 +672,24 @@
     });
 
     function addToShopping(name, category = '') {
-        state.shopping.push({ id: uid(), name, category, checked: false }); save(); toast(`${name} añadido a la compra`); render();
+        const item = { id: uid(), name, category, checked: false };
+        state.shopping.push(item);
+        save();
+        render();
+        animateRow(item.id);
+        toast(`${name} añadido a la compra`);
     }
 
     document.querySelector('.bottom-nav').addEventListener('click', event => {
         const item = event.target.closest('[data-tab]'); if (!item) return;
         activeTab = item.dataset.tab;
         document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i === item));
-        window.scrollTo({ top: 0, behavior: 'smooth' }); render();
+        window.scrollTo({ top: 0, behavior: 'smooth' }); render(true);
     });
 
     $('#quickAddButton').addEventListener('click', () => {
-        if (activeTab === 'today') openModal('dailyBaseTasks');
-        else {
-            const map = { kitchen: 'recipes', luke: 'lukeDaily', shopping: 'shopping', more: 'maintenance' };
-            openModal(map[activeTab]);
-        }
+        const map = { today: 'todayExtras', kitchen: 'recipes', luke: 'lukeDaily', shopping: 'shopping', more: 'expenses' };
+        openModal(map[activeTab]);
     });
 
     $('#modalClose').addEventListener('click', closeModal);
@@ -563,6 +715,8 @@
             save();
             closeModal();
             render();
+            if (!existing && day === new Date().getDay()) animateRow(`weekly:${item.id}`);
+            if (!existing) animateRow(item.id);
             toast(existing ? 'Rutina actualizada' : 'Rutina añadida');
             return;
         }
@@ -574,7 +728,13 @@
         if (existing) state[collection][state[collection].findIndex(i => i.id === existing.id)] = item;
         else state[collection].push(item);
         if (collection === 'dailyBaseTasks') generateTodayTasks(state);
-        save(); closeModal(); render(); toast(existing ? 'Cambios guardados' : 'Elemento añadido');
+        if (collection === 'todayExtras') generateTodayTasks(state);
+        save(); closeModal(); render();
+        toast(existing ? 'Cambios guardados' : collection === 'shopping' ? 'Producto añadido a la compra' : collection === 'expenses' ? 'Gasto registrado' : 'Elemento añadido');
+        if (!existing) {
+            animateRow(collection === 'todayExtras' ? `extra:${item.id}` : item.id);
+            if (collection === 'dailyBaseTasks') animateRow(`fixed:${item.id}`);
+        }
     });
 
     setInterval(() => { const before = state.lastOpenDate; checkDayReset(state); if (before !== state.lastOpenDate) { save(); render(); toast('Se ha iniciado un nuevo día'); } }, 60000);
